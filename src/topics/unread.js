@@ -162,7 +162,7 @@ module.exports = function(Topics) {
 		} else {
 		    return null;
 		}
-		
+
 		var	websockets = require('./../socket.io');
 
 		if (!uids) {
@@ -228,6 +228,9 @@ module.exports = function(Topics) {
 
 	Topics.markTopicNotificationsRead = function(tid, uid) {
 		user.notifications.getUnreadByField(uid, 'tid', tid, function(err, nids) {
+			if (err) {
+				return winston.error(err.stack);
+			}
 			notifications.markReadMultiple(nids, uid, function() {
 				user.notifications.pushCount(uid);
 			});
