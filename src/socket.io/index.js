@@ -24,10 +24,7 @@ var	SocketIO = require('socket.io'),
 
 var	io;
 
-var onlineUsersMap = {};
 var onlineUsers = [];
-var uidToSocketId = {};
-var socketIdToUid = {};
 
 process.on('message', onMessage);
 
@@ -37,42 +34,16 @@ function onMessage(msg) {
 	}
 
 	if (msg.action === 'user:connect') {
-		if (!onlineUsersMap[msg.uid]) {
-			onlineUsersMap[msg.uid] = 1;
-		} else {
-			onlineUsersMap[msg.uid]++;
-		}
-
 		if (msg.uid && onlineUsers.indexOf(msg.uid) === -1) {
 			onlineUsers.push(msg.uid);
 		}
-
-		if (Array.isArray(uidToSocketId[msg.uid])) {
-			uidToSocketId[msg.uid].push(msg.socketid);
-		} else {
-			uidToSocketId[msg.uid] = [msg.socketid];
-		}
-		socketIdToUid[msg.socketid] = msg.uid;
 	} else if(msg.action === 'user:disconnect') {
-		if (onlineUsersMap[msg.uid]) {
-			onlineUsersMap[msg.uid] -= 1;
-			onlineUsersMap[msg.uid] = Math.max(0, onlineUsersMap[msg.uid]);
-		}
-		var index = 0;
-		if (msg.uid && onlineUsersMap[msg.uid] === 0) {
-			index = onlineUsers.indexOf(msg.uid);
+		if (msg.uid && msg.socketCount <= 1) {
+			var index = onlineUsers.indexOf(msg.uid);
 			if (index !== -1) {
 				onlineUsers.splice(index, 1);
 			}
 		}
-
-		if (uidToSocketId[msg.uid]) {
-			index = uidToSocketId[msg.uid].indexOf(msg.socketid);
-			if (index !== -1) {
-				uidToSocketId[msg.uid].splice(index, 1);
-			}
-		}
-		delete socketIdToUid[msg.socketid];
 	}
 }
 
@@ -85,8 +56,8 @@ function onUserConnect(uid, socketid) {
 	}
 }
 
-function onUserDisconnect(uid, socketid) {
-	var msg = {action: 'user:disconnect', uid: uid, socketid: socketid};
+function onUserDisconnect(uid, socketid, socketCount) {
+	var msg = {action: 'user:disconnect', uid: uid, socketid: socketid, socketCount: socketCount};
 	if (process.send) {
 		process.send(msg);
 	} else {
@@ -155,10 +126,9 @@ Sockets.init = function(server) {
 				logger.io_one(socket, uid);
 
 				if (uid) {
-
+					socket.join('uid_' + uid);
+					socket.join('online_users');
 					db.sortedSetAdd('users:online', Date.now(), uid, function(err) {
-						socket.join('uid_' + uid);
-
 						async.parallel({
 							user: function(next) {
 								user.getUserFields(uid, ['username', 'userslug', 'picture', 'status'], next);
@@ -183,6 +153,7 @@ Sockets.init = function(server) {
 						});
 					});
 				} else {
+					socket.join('online_guests');
 					socket.emit('event:connect', {
 						status: 1,
 						username: '[[global:guest]]',
@@ -194,8 +165,8 @@ Sockets.init = function(server) {
 		});
 
 		socket.on('disconnect', function() {
-
-			if (uid && (!onlineUsersMap[uid] || onlineUsersMap[uid] <= 1)) {
+			var socketCount = Sockets.getUserSocketCount(uid);
+			if (uid && socketCount <= 1) {
 				db.sortedSetRemove('users:online', uid, function(err) {
 					if (err) {
 						return winston.error(err.message);
@@ -204,7 +175,7 @@ Sockets.init = function(server) {
 				});
 			}
 
-			onUserDisconnect(uid, socket.id);
+			onUserDisconnect(uid, socket.id, socketCount);
 
 			emitOnlineUserCount();
 
@@ -276,15 +247,18 @@ Sockets.in = function(room) {
 };
 
 Sockets.uidInRoom = function(uid, room) {
-	var socketIds = io.sockets.manager.rooms[room];
-	if (!Array(socketIds) || !socketIds.length) {
+	var userSocketIds = io.sockets.manager.rooms['/uid_' + uid];
+	if (!Array.isArray(userSocketIds) || !userSocketIds.length) {
 		return false;
 	}
 
-	uid = parseInt(uid, 10);
+	var roomSocketIds = io.sockets.manager.rooms['/' + room];
+	if (!Array.isArray(roomSocketIds) || !roomSocketIds.length) {
+		return false;
+	}
 
-	for (var i=0; i<socketIds.length; ++i) {
-		if (socketIdToUid[socketIds[i]] === uid) {
+	for (var i=0; i<userSocketIds.length; ++i) {
+		if (roomSocketIds.indexOf(userSocketIds[i]) !== -1) {
 			return true;
 		}
 	}
@@ -292,16 +266,42 @@ Sockets.uidInRoom = function(uid, room) {
 };
 
 Sockets.getSocketCount = function() {
-	return Object.keys(socketIdToUid).length;
+	var clients = io.sockets.manager.rooms[''];
+	if (!Array.isArray(clients)) {
+		return 0;
+	}
+	return clients.length;
 };
 
 Sockets.getConnectedClients = function() {
 	return onlineUsers;
 };
 
+Sockets.getUserSocketCount = function(uid) {
+	var roomClients = io.sockets.manager.rooms['/uid_' + uid];
+	if(!Array.isArray(roomClients)) {
+		return 0;
+	}
+	return roomClients.length;
+};
+
+Sockets.getOnlineUserCount = function () {
+	var roomNames = Object.keys(io.sockets.manager.rooms);
+	if (!Array.isArray(roomNames)) {
+		return 0;
+	}
+	roomNames = roomNames.filter(function(name) {
+		return name.indexOf('/uid_') === 0;
+	});
+	return roomNames.length;
+};
+
 Sockets.getOnlineAnonCount = function () {
-	var count = parseInt(onlineUsersMap[0], 10);
-	return count ? count : 0;
+	var guestRoom = io.sockets.manager.rooms['/online_guests'];
+	if (!Array.isArray(guestRoom)) {
+		return 0;
+	}
+	return guestRoom.length;
 };
 
 Sockets.getUserSockets = function(uid) {
@@ -321,7 +321,7 @@ Sockets.getUserSockets = function(uid) {
 
 Sockets.getUserRooms = function(uid) {
 	var rooms = {};
-	var uidSocketIds = uidToSocketId[uid];
+	var uidSocketIds = io.sockets.manager.rooms['/uid_' + uid];
 	if (!Array.isArray(uidSocketIds)) {
 		return [];
 	}
@@ -359,13 +359,11 @@ Sockets.reqFromSocket = function(socket) {
 
 Sockets.isUserOnline = isUserOnline;
 function isUserOnline(uid) {
-	return !!onlineUsersMap[uid];
+	return Array.isArray(io.sockets.manager.rooms['/uid_' + uid]);
 }
 
 Sockets.isUsersOnline = function(uids, callback) {
-	var data = uids.map(function(uid) {
-		return !!onlineUsersMap[uid];
-	});
+	var data = uids.map(isUserOnline);
 
 	callback(null, data);
 };
@@ -408,30 +406,17 @@ Sockets.getUidsInRoom = function(roomName) {
 	}
 
 	for(var i=0; i<socketids.length; ++i) {
-		var uid = socketIdToUid[socketids[i]];
-		if (uid && uids.indexOf(uid) === -1) {
-			uids.push(uid);
+		var socketRooms = Object.keys(io.sockets.manager.roomClients[socketids[i]]);
+		if (Array.isArray(socketRooms)) {
+			socketRooms.forEach(function(roomName) {
+				if (roomName.indexOf('/uid_') === 0 ) {
+					uids.push(roomName.split('_')[1]);
+				}
+			});
 		}
 	}
 
 	return uids;
-};
-
-Sockets.getAnonCountInRoom = function(roomName) {
-	var count = 0;
-	roomName = roomName ? '/' + roomName : '';
- 	var socketids = io.sockets.manager.rooms[roomName];
-	if (!Array.isArray(socketids)) {
-		return [];
-	}
-
-	for(var i=0; i<socketids.length; ++i) {
-		if (socketIdToUid[socketids[i]] === 0) {
-			++count;
-		}
-	}
-
-	return count;
 };
 
 Sockets.emitTopicPostStats = emitTopicPostStats;
@@ -457,7 +442,7 @@ function emitTopicPostStats(callback) {
 Sockets.emitOnlineUserCount = emitOnlineUserCount;
 function emitOnlineUserCount(callback) {
 	var anon = Sockets.getOnlineAnonCount();
-	var registered = Sockets.getConnectedClients().length;
+	var registered = Sockets.getOnlineUserCount();
 
 	var returnObj = {
 		users: registered + anon,
