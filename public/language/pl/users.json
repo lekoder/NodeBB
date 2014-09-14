@@ -6,5 +6,5 @@
     "enter_username": "Wpisz nazwę użytkownika",
     "load_more": "Więcej",
     "user-not-found": "Nie znaleziono użytkownika!",
-    "users-found-search-took": "Znaleziono %1 użytkownik(ów)! Wyszukiwanie trwało %2 ms."
+    "users-found-search-took": "Znaleziono %1 użytkowników. Szukanie zajęło %2 ms."
 }
