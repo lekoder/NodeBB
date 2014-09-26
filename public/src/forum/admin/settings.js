@@ -17,8 +17,6 @@ define('forum/admin/settings', ['uploader', 'sounds'], function(uploader, sounds
 			return;
 		}
 
-		setupPills();
-
 		// Populate the fields on the page from the config
 		var fields = $('#content [data-field]'),
 			numFields = fields.length,
@@ -33,6 +31,7 @@ define('forum/admin/settings', ['uploader', 'sounds'], function(uploader, sounds
 				if (app.config[key]) {
 					switch (inputType) {
 					case 'text':
+					case 'hidden':
 					case 'password':
 					case 'textarea':
 					case 'number':
@@ -127,14 +126,6 @@ define('forum/admin/settings', ['uploader', 'sounds'], function(uploader, sounds
 		socket.emit('admin.config.remove', key);
 	};
 
-	function setupPills() {
-		$('.settings.nav-pills li').removeClass('active');
-
-		var slug = window.location.href.split('/');
-		slug = slug[slug.length-1];
-		$('.settings.nav-pills [data-pill="' + slug + '"]').addClass('active');
-	}
-
 	function saveField(field, callback) {
 		field = $(field);
 		var key = field.attr('data-field'),
@@ -145,6 +136,7 @@ define('forum/admin/settings', ['uploader', 'sounds'], function(uploader, sounds
 			switch (inputType) {
 			case 'text':
 			case 'password':
+			case 'hidden':
 			case 'textarea':
 			case 'number':
 				value = field.val();

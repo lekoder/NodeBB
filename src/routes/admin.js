@@ -39,7 +39,7 @@ function addRoutes(router, middleware, controllers) {
 	//main
 	router.get('/index', controllers.admin.home);
 	router.get('/plugins', controllers.admin.plugins.get);
-	router.get('/themes', controllers.admin.themes.get);
+	router.get('/appearance/:term?', controllers.admin.appearance.get);
 	router.get('/languages', controllers.admin.languages.get);
 	router.get('/groups', controllers.admin.groups.get);
 	router.get('/sounds', controllers.admin.sounds.get);
@@ -55,6 +55,7 @@ function addRoutes(router, middleware, controllers) {
 	router.get('/users/sort-reputation', controllers.admin.users.sortByReputation);
 
 	//forum
+	router.get('/categories', middleware.applyCSRF, controllers.admin.categories.active);
 	router.get('/categories/active', middleware.applyCSRF, controllers.admin.categories.active);
 	router.get('/categories/disabled', middleware.applyCSRF, controllers.admin.categories.disabled);
 	router.get('/tags', controllers.admin.tags.get);

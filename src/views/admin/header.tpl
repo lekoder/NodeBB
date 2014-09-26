@@ -19,11 +19,11 @@
 	    <script>__lt_ie_9__ = 1;</script>
 	<![endif]-->
 
-	<script src="{relative_path}/socket.io/socket.io.js"></script>
-	<script src="{relative_path}/nodebb.min.js"></script>
-	<script src="{relative_path}/vendor/colorpicker/colorpicker.js"></script>
-	<script src="{relative_path}/vendor/tabIndent/tabIndent.js"></script>
-	<script src="{relative_path}/src/admin.js?{cache-buster}"></script>
+	<script type="text/javascript" src="{relative_path}/socket.io/socket.io.js"></script>
+	<script type="text/javascript" src="{relative_path}/nodebb.min.js"></script>
+	<script type="text/javascript" src="{relative_path}/vendor/colorpicker/colorpicker.js"></script>
+	<script type="text/javascript" src="{relative_path}/src/admin.js?{cache-buster}"></script>
+	<script type="text/javascript" src="{relative_path}/vendor/ace/ace.js"></script>
 
 	<script>
 		require.config({
@@ -75,11 +75,7 @@
 						<div class="form-group" id="acp-search" >
 							<div class="dropdown" >
 								<input type="text" data-toggle="dropdown" class="form-control" placeholder="Search ACP...">
-								<ul class="dropdown-menu" role="menu">
-									<div class="found"></div>
-									<li><a href="#">Separated link</a></li>
-									<li><a href="search" id="search-main">Search the forum for</a></li>
-								</ul>
+								<ul class="dropdown-menu" role="menu"></ul>
 							</div>
 						</div>
 					</form>
@@ -115,7 +111,7 @@
 						<li><a href="{relative_path}/admin/users/latest"><i class="fa fa-fw fa-user"></i> Users</a></li>
 						<li><a href="{relative_path}/admin/groups"><i class="fa fa-fw fa-group"></i> Groups</a></li>
 						<li><a href="{relative_path}/admin/settings/general"><i class="fa fa-fw fa-cogs"></i> Settings</a></li>
-						<li><a href="{relative_path}/admin/themes"><i class="fa fa-fw fa-th"></i> Themes</a></li>
+						<li><a href="{relative_path}/admin/appearance/themes"><i class="fa fa-fw fa-th"></i> Appearance</a></li>
 						<li><a href="{relative_path}/admin/plugins"><i class="fa fa-fw fa-code-fork"></i> Plugins</a></li>
 						<li><a href="{relative_path}/admin/languages"><i class="fa fa-fw fa-language"></i> Languages</a></li>
 						<li><a href="{relative_path}/admin/sounds"><i class="fa fa-fw fa-volume-up"></i> Sounds</a></li>
