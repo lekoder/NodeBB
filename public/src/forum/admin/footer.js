@@ -23,21 +23,56 @@ define('forum/admin/footer', ['forum/admin/settings'], function(Settings) {
 			setupACPSearch();
 		});
 
-		$(window).on('action:ajaxify.end', function() {
-			setupPills();
+		$(window).on('action:ajaxify.end', function(ev, data) {
+			var url = data.url;
+
+			selectMenuItem(data.url);
 		});
+
+		setupMainMenu();
 	});
 
-	function setupPills() {
-		$('.navigation.nav-pills li').removeClass('active');
+	function setupMainMenu() {
+		$('.sidebar-nav .nav-header').on('click', function() {
+			$(this).parents('.sidebar-nav').toggleClass('open');
+			setTimeout(function() {
+				$('.nano').nanoScroller();
+			}, 500); // replace with animationend event
+		});
 
-		var slug = window.location.href.split('/');
-		slug = slug[slug.length-1];
-		$('.navigation.nav-pills [data-pill="' + slug + '"]').addClass('active');
+		$('.nano').nanoScroller();
+
+		$('#main-menu .nav-list > li a').append('<span class="pull-right"><i class="fa fa-inverse fa-arrow-circle-right"></i>&nbsp;</span>')
+
+	}
+
+	function selectMenuItem(url) {
+		$('#main-menu .nav-list > li').removeClass('active').each(function() {
+			var menu = $(this),
+				category = menu.parents('.sidebar-nav'),
+				href = menu.children('a').attr('href');
+
+			if (href && href.slice(1).indexOf(url) !== -1) {
+				category.addClass('open');
+				menu.addClass('active');
+				modifyBreadcrumb(category.find('.nav-header').text(), menu.text());
+				return false;
+			}
+		});
+	}
+
+	function modifyBreadcrumb() {
+		var caret = ' <i class="fa fa-angle-right"></i> ';
+		
+		$('#breadcrumbs').html(caret + Array.prototype.slice.call(arguments).join(caret));
 	}
 	
 	function setupACPSearch() {
 		var menu = $('#acp-search .dropdown-menu');
+
+		$('#acp-search input').on('keyup', function() {
+			$('#acp-search .dropdown').addClass('open');
+		});
 
 		$('#acp-search input').on('keyup focus', function() {
 			var $input = $(this),
@@ -78,7 +113,7 @@ define('forum/admin/footer', ['forum/admin/settings'], function(Settings) {
 			if (value.length > 0) {
 				menuItems.append('<li role="presentation"><a role="menuitem" href="' + RELATIVE_PATH + '/search/' + value + '">Search the forum for <strong>' + value + '</strong></a></li>');
 			} else {
-				menuItems.append('<li role="presentation"><a role="menuitem" href="' + RELATIVE_PATH + '/search/' + value + '">Click here for forum-wide search</a></li>');
+				menuItems.append('<li role="presentation"><a role="menuitem" href="#">Start typing to see results...</a></li>');
 			}
 		});
 	}
