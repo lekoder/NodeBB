@@ -2,6 +2,8 @@
 
 var async = require('async'),
 	winston = require('winston'),
+	templates = require('templates.js'),
+
 	user = require('./user'),
 	groups = require('./groups'),
 	plugins = require('./plugins'),
@@ -32,13 +34,18 @@ var async = require('async'),
 
 	Meta.reload = function(callback) {
 		async.series([
+			async.apply(plugins.clearRequireCache),
 			async.apply(plugins.reload),
 			function(next) {
 				async.parallel([
 					async.apply(Meta.js.minify, false),
 					async.apply(Meta.css.minify),
 					async.apply(Meta.templates.compile),
-					async.apply(auth.reloadRoutes)
+					async.apply(auth.reloadRoutes),
+					function(next) {
+						templates.flush();
+						next();
+					}
 				], next);
 			}
 		], function(err) {

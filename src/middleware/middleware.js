@@ -1,7 +1,9 @@
 "use strict";
 
 var app,
-	middleware = {},
+	middleware = {
+		admin: {}
+	},
 	async = require('async'),
 	path = require('path'),
 	winston = require('winston'),
@@ -49,29 +51,10 @@ middleware.updateLastOnlineTime = function(req, res, next) {
 };
 
 middleware.incrementPageViews = function(req, res, next) {
-	var nextMonth = new Date(),
-		nextDay = new Date();
+	var today = new Date();
+	today.setHours(today.getHours(), 0, 0, 0);
 
-	nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
-	nextMonth.setHours(0, 0, 0, 0);
-
-	nextDay.setDate(nextDay.getDate() + 1);
-	nextDay.setHours(0, 0, 0, 0);
-
-	db.increment('pageviews:monthly', function(err) {
-		if (err) {
-			return;
-		}
-		db.pexpireAt('pageviews:monthly', nextMonth.getTime());
-	});
-
-	db.increment('pageviews:daily', function(err) {
-		if (err) {
-			return;
-		}
-		db.pexpireAt('pageviews:daily', nextDay.getTime());
-	});
-
+	db.sortedSetIncrBy('analytics:pageviews', 1, today.getTime());
 	next();
 };
 
@@ -372,6 +355,7 @@ middleware.renderHeader = function(req, res, callback) {
 			templateValues.user = results.user;
 			templateValues.customCSS = results.customCSS;
 			templateValues.customJS = results.customJS;
+			templateValues.maintenanceHeader = meta.config.maintenanceMode === '1' && !results.isAdmin
 
 			app.render('header', templateValues, callback);
 		});
@@ -460,13 +444,19 @@ middleware.addExpiresHeaders = function(req, res, next) {
 };
 
 middleware.maintenanceMode = function(req, res, next) {
-	var render = function() {
-		res.render('maintenance', {
-			site_title: meta.config.site_title || 'NodeBB'
-		});
-	};
+	var allowedRoutes = [
+			'/login'
+		],
+		render = function() {
+			middleware.buildHeader(req, res, function() {
+				res.render('maintenance', {
+					site_title: meta.config.site_title || 'NodeBB',
+					message: meta.config.maintenanceModeMessage
+				});
+			});
+		};
 
-	if (meta.config.maintenanceMode === '1') {
+	if (meta.config.maintenanceMode === '1' && allowedRoutes.indexOf(req.url) === -1) {
 		if (!req.user) {
 			return render();
 		} else {

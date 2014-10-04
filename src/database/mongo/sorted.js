@@ -26,6 +26,9 @@ module.exports = function(db, module) {
 	};
 
 	function sortedSetAddBulk(key, scores, values, callback) {
+		if (!scores.length || !values.length) {
+			return callback();
+		}
 		if (scores.length !== values.length) {
 			return callback(new Error('[[error:invalid-data]]'));
 		}
@@ -104,7 +107,12 @@ module.exports = function(db, module) {
 		if (!key) {
 			return callback();
 		}
-		db.collection('objects').find({_key:key}, {fields: {_id: 0, value: 1, score: 1}})
+
+		var fields = {_id: 0, value: 1};
+		if (withScores) {
+			fields['score'] = 1;
+		}
+		db.collection('objects').find({_key:key}, {fields: fields})
 			.limit(stop - start + 1)
 			.skip(start)
 			.sort({score: sort})
@@ -136,14 +144,18 @@ module.exports = function(db, module) {
 	};
 
 	module.getSortedSetRangeByScore = function(key, start, count, min, max, callback) {
-		getSortedSetRangeByScore(key, start, count, min, max, 1, callback);
+		getSortedSetRangeByScore(key, start, count, min, max, 1, false, callback);
 	};
 
 	module.getSortedSetRevRangeByScore = function(key, start, count, max, min, callback) {
-		getSortedSetRangeByScore(key, start, count, min, max, -1, callback);
+		getSortedSetRangeByScore(key, start, count, min, max, -1, false, callback);
 	};
 
-	function getSortedSetRangeByScore(key, start, count, min, max, sort, callback) {
+	module.getSortedSetRevRangeByScoreWithScores = function(key, start, count, max, min, callback) {
+		getSortedSetRangeByScore(key, start, count, min, max, -1, true, callback);
+	};
+
+	function getSortedSetRangeByScore(key, start, count, min, max, sort, withScores, callback) {
 		if (!key) {
 			return callback();
 		}
@@ -159,7 +171,12 @@ module.exports = function(db, module) {
 			scoreQuery['$lte'] = max;
 		}
 
-		db.collection('objects').find({_key:key, score: scoreQuery}, {fields:{value:1}})
+		var fields = {_id: 0, value: 1};
+		if (withScores) {
+			fields['score'] = 1;
+		}
+
+		db.collection('objects').find({_key:key, score: scoreQuery}, {fields: fields})
 			.limit(count)
 			.skip(start)
 			.sort({score: sort})
@@ -168,9 +185,11 @@ module.exports = function(db, module) {
 					return callback(err);
 				}
 
-				data = data.map(function(item) {
-					return item.value;
-				});
+				if (!withScores) {
+					data = data.map(function(item) {
+						return item.value;
+					});
+				}
 
 				callback(err, data);
 			});
@@ -187,7 +206,7 @@ module.exports = function(db, module) {
 
 	module.sortedSetCard = function(key, callback) {
 		if (!key) {
-			return callback();
+			return callback(null, 0);
 		}
 		db.collection('objects').count({_key: key}, function(err, count) {
 			count = parseInt(count, 10);
@@ -271,6 +290,9 @@ module.exports = function(db, module) {
 			}
 
 			var result = values.map(function(value) {
+				if (!value) {
+					return null;
+				}
 				var index = sortedSet.indexOf(value.toString());
 				return index !== -1 ? index : null;
 			});
@@ -410,4 +432,18 @@ module.exports = function(db, module) {
 			callback(null, data);
 		});
 	}
+
+	module.sortedSetIncrBy = function(key, increment, value, callback) {
+		callback = callback || helpers.noop;
+		if (!key) {
+			return callback();
+		}
+		var data = {};
+		value = helpers.fieldToString(value);
+		data['score'] = parseInt(increment, 10);
+
+		db.collection('objects').findAndModify({_key: key, value: value}, {}, {$inc: data}, {new:true, upsert:true}, function(err, result) {
+			callback(err, result ? result[value] : null);
+		});
+	};
 };

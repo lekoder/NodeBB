@@ -5,8 +5,10 @@ var	nconf = require('nconf'),
 	path = require('path'),
 	cluster = require('cluster'),
 	async = require('async'),
+	logrotate = require('logrotate-stream'),
 	pidFilePath = __dirname + '/pidfile',
-	output = fs.openSync(__dirname + '/logs/output.log', 'a'),
+	output = logrotate({ file: __dirname + '/logs/output.log', size: '1m', keep: 3, compress: true }),
+	silent = process.env.NODE_ENV !== 'development' ? true : false,
 	numCPUs,
 	Loader = {
 		timesStarted: 0,
@@ -14,14 +16,25 @@ var	nconf = require('nconf'),
 		js: {
 			cache: undefined,
 			map: undefined
+		},
+		css: {
+			cache: undefined,
+			acpCache: undefined
 		}
 	};
 
 Loader.init = function() {
 	cluster.setupMaster({
 		exec: "app.js",
-		silent: false
+		silent: silent
 	});
+	Loader.primaryWorker = 1;
+
+	if (silent) {
+		console.log = function(value) {
+			output.write(value + '\n');
+		};
+	}
 
 	cluster.on('fork', function(worker) {
 		worker.on('message', function(message) {
@@ -36,7 +49,13 @@ Loader.init = function() {
 							});
 						}
 
-						worker.send('bind');
+						if (Loader.css.cache) {
+							worker.send({
+								action: 'css-propagate',
+								cache: Loader.css.cache,
+								acpCache: Loader.css.acpCache
+							});
+						}
 
 						// Kill an instance in the shutdown queue
 						var workerToKill = Loader.shutdown_queue.pop();
@@ -69,6 +88,21 @@ Loader.init = function() {
 							});
 						});
 					break;
+					case 'css-propagate':
+						Loader.css.cache = message.cache;
+						Loader.css.acpCache = message.acpCache;
+
+						var otherWorkers = Object.keys(cluster.workers).filter(function(worker_id) {
+								return parseInt(worker_id, 10) !== parseInt(worker.id, 10);
+							});
+						otherWorkers.forEach(function(worker_id) {
+							cluster.workers[worker_id].send({
+								action: 'css-propagate',
+								cache: message.cache,
+								acpCache: message.acpCache
+							});
+						});
+					break;
 					case 'listening':
 						if (message.primary) {
 							Loader.primaryWorker = parseInt(worker.id, 10);
@@ -76,7 +110,8 @@ Loader.init = function() {
 					break;
 					case 'user:connect':
 					case 'user:disconnect':
-						notifyWorkers(worker, message);
+					case 'config:update':
+						notifyWorkers(message);
 					break;
 				}
 			}
@@ -87,7 +122,7 @@ Loader.init = function() {
 		console.log('[cluster] Child Process (' + worker.process.pid + ') listening for connections.');
 	});
 
-	function notifyWorkers(currentWorker, msg) {
+	function notifyWorkers(msg) {
 		Object.keys(cluster.workers).forEach(function(id) {
 			cluster.workers[id].send(msg);
 		});
@@ -104,7 +139,7 @@ Loader.init = function() {
 					Loader.timesStarted = 0;
 				});
 			} else {
-				console.log(numCPUs*3, 'restarts in 10 seconds, most likely an error on startup. Halting.');
+				console.log(numCPUs*3 + ' restarts in 10 seconds, most likely an error on startup. Halting.');
 				process.exit();
 			}
 		}
@@ -126,14 +161,20 @@ Loader.init = function() {
 };
 
 Loader.start = function() {
-	Loader.primaryWorker = 1;
+	var output = logrotate({ file: __dirname + '/logs/output.log', size: '1m', keep: 3, compress: true }),
+		worker;
 
 	for(var x=0;x<numCPUs;x++) {
 		// Only the first worker sets up templates/sounds/jobs/etc
-		cluster.fork({
+		worker = cluster.fork({
 			cluster_setup: x === 0,
-			handle_jobs: x ===0
+			handle_jobs: x === 0
 		});
+
+		// Logging
+		if (silent) {
+			worker.process.stdout.pipe(output);
+		}
 	}
 }
 
@@ -172,9 +213,7 @@ if (nconf.get('daemon') !== false) {
 		}
 	}
 
-	require('daemon')({
-		stdout: output
-	});
+	require('daemon')();
 
 	fs.writeFile(__dirname + '/pidfile', process.pid);
 }

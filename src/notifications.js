@@ -81,6 +81,9 @@ var async = require('async'),
 					}
 
 					return next(null, notification);
+				} else {
+					notification.image = meta.config['brand:logo'] || nconf.get('relative_path') + '/logo.png';
+					return next(null, notification);
 				}
 
 			}, callback);
@@ -133,7 +136,9 @@ var async = require('async'),
 		var unreadKeys = [];
 		var readKeys = [];
 
-		uids.filter(Boolean).forEach(function(uid) {
+		uids.filter(function(uid) {
+			return parseInt(uid, 10);
+		}).forEach(function(uid) {
 			unreadKeys.push('uid:' + uid + ':notifications:unread');
 			readKeys.push('uid:' + uid + ':notifications:read');
 		});
@@ -244,7 +249,7 @@ var async = require('async'),
 			}
 
 			if (!Array.isArray(nids) || !nids.length) {
-				return events.log('No notifications to prune');
+				return;
 			}
 
 			var	keys = nids.map(function(nid) {
@@ -252,8 +257,6 @@ var async = require('async'),
 			});
 
 			numPruned = nids.length;
-
-			events.log('Notification pruning. Expired Nids = ' + numPruned);
 
 			async.parallel([
 				function(next) {

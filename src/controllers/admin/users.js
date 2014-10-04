@@ -6,7 +6,7 @@ var user = require('./../../user');
 var usersController = {};
 
 usersController.search = function(req, res, next) {
-	res.render('admin/users', {
+	res.render('admin/manage/users', {
 		search_display: '',
 		loadmore_display: 'none',
 		users: []
@@ -25,12 +25,16 @@ usersController.sortByJoinDate = function(req, res, next) {
 	getUsers('users:joindate', req, res, next);
 };
 
+usersController.banned = function(req, res, next) {
+	getUsers('users:banned', req, res, next);
+};
+
 function getUsers(set, req, res, next) {
 	user.getUsersFromSet(set, 0, 49, function(err, users) {
 		if (err) {
 			return next(err);
 		}
-		res.render('admin/users', {
+		res.render('admin/manage/users', {
 			search_display: 'hidden',
 			loadmore_display: 'block',
 			users: users,

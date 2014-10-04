@@ -32,10 +32,11 @@ $(document).ready(function() {
 			if (data) {
 				if (data.status === 404) {
 					return ajaxify.go('404');
-				} else if (data.status === 403) {
+				} else if (data.status === 401) {
 					app.alertError('[[global:please_log_in]]');
-					app.previousUrl = url;
 					return ajaxify.go('login');
+				} else if (data.statuc === 403) {
+					app.alertError('[[error:no-privileges]]');
 				} else if (data.status === 302) {
 					return ajaxify.go(data.responseJSON.slice(1), callback, quiet);
 				}
@@ -274,7 +275,7 @@ $(document).ready(function() {
 				}
 
 				if ((!e.ctrlKey && !e.shiftKey && !e.metaKey) && e.which === 1) {
-					if (this.host === window.location.host) {
+					if (this.host === '' || this.host === window.location.host) {
 						// Internal link
 						var url = this.href.replace(rootUrl + '/', '');
 

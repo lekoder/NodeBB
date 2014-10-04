@@ -12,6 +12,7 @@ var topicsController = require('./topics'),
 
 	async = require('async'),
 	nconf = require('nconf'),
+	validator = require('validator'),
 	winston = require('winston'),
 	auth = require('../routes/authentication'),
 	meta = require('../meta'),
@@ -117,7 +118,7 @@ Controllers.search = function(req, res, next) {
 		return res.redirect('/404');
 	}
 
-	req.params.term = req.params.term.replace(/"/g, '/"');
+	req.params.term = validator.escape(req.params.term);
 
 	search.search(req.params.term, uid, function(err, results) {
 		if (err) {
@@ -144,8 +145,8 @@ Controllers.login = function(req, res, next) {
 	data.authentication = login_strategies;
 	data.token = req.csrfToken();
 	data.showResetLink = emailersPresent;
-	data.allowLocalLogin = meta.config.allowLocalLogin === undefined || parseInt(meta.config.allowLocalLogin, 10) === 1;
-	data.allowRegistration = meta.config.allowRegistration;
+	data.allowLocalLogin = parseInt(meta.config.allowLocalLogin, 10) === 1;
+	data.allowRegistration = parseInt(meta.config.allowRegistration, 10) === 1;
 	data.error = req.flash('error')[0];
 
 	res.render('login', data);

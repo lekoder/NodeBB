@@ -12,6 +12,10 @@ module.exports = function(redisClient, module) {
 	};
 
 	function sortedSetAddMulti(key, scores, values, callback) {
+		if (!scores.length || !values.length) {
+			return callback();
+		}
+
 		if (scores.length !== values.length) {
 			return callback(new Error('[[error:invalid-data]]'));
 		}
@@ -96,6 +100,19 @@ module.exports = function(redisClient, module) {
 
 	module.getSortedSetRevRangeByScore = function(key, start, count, max, min, callback) {
 		redisClient.zrevrangebyscore([key, max, min, 'LIMIT', start, count], callback);
+	};
+
+	module.getSortedSetRevRangeByScoreWithScores = function(key, start, count, max, min, callback) {
+		redisClient.zrevrangebyscore([key, max, min, 'WITHSCORES', 'LIMIT', start, count], function(err, data) {
+			if (err) {
+				return callback(err);
+			}
+			var objects = [];
+			for(var i=0; i<data.length; i+=2) {
+				objects.push({value: data[i], score: data[i+1]});
+			}
+			callback(null, objects);
+		});
 	};
 
 	module.sortedSetCount = function(key, min, max, callback) {
@@ -211,4 +228,8 @@ module.exports = function(redisClient, module) {
 			callback(err, results ? results[1] : null);
 		});
 	}
+
+	module.sortedSetIncrBy = function(key, increment, value, callback) {
+		redisClient.zincrby(key, increment, value, callback);
+	};
 };
